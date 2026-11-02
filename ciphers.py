@@ -1,56 +1,88 @@
 import math
 
-# Stage 1: Vigenere Cipher (Polyalphabetic Substitution)
-def vigenere_cipher(text, key, encrypt=True):
+def vigenere_encrypt(text, key):
     result = []
-    key = key.upper()
-    key_idx = 0
-    for char in text:
+    key_length = len(key)
+    for i, char in enumerate(text):
         if char.isalpha():
-            shift = ord(key[key_idx % len(key)]) - ord('A')
-            if not encrypt:
-                shift = -shift
-            
+            shift = ord(key[i % key_length].upper()) - ord('A')
             base = ord('A') if char.isupper() else ord('a')
-            new_char = chr((ord(char) - base + shift) % 26 + base)
-            result.append(new_char)
-            key_idx += 1
+            encrypted_char = chr((ord(char) - base + shift) % 26 + base)
+            result.append(encrypted_char)
         else:
             result.append(char)
     return "".join(result)
 
-# Stage 2: Columnar Transposition
-def transposition_encrypt(text, key):
-    ciphertext = [""] * len(key)
-    for col in range(len(key)):
-        pointer = col
-        while pointer < len(text):
-            ciphertext[col] += text[pointer]
-            pointer += len(key)
-    return "".join(ciphertext)
+def vigenere_decrypt(text, key):
+    result = []
+    key_length = len(key)
+    for i, char in enumerate(text):
+        if char.isalpha():
+            shift = ord(key[i % key_length].upper()) - ord('A')
+            base = ord('A') if char.isupper() else ord('a')
+            decrypted_char = chr((ord(char) - base - shift + 26) % 26 + base)
+            result.append(decrypted_char)
+        else:
+            result.append(char)
+    return "".join(result)
 
-def transposition_decrypt(ciphertext, key):
-    num_cols = len(key)
-    num_rows = math.ceil(len(ciphertext) / num_cols)
-    num_shaded_boxes = (num_cols * num_rows) - len(ciphertext)
+def columnar_encrypt(text, key):
+    # Only keep alphabets and convert to uppercase for clean transposition matrix
+    text = "".join([c.upper() for c in text if c.isalpha()])
+    key = key.upper()
     
-    plaintext = [""] * num_cols
-    col = 0
-    row = 0
+    col_count = len(key)
+    row_count = math.ceil(len(text) / col_count)
     
-    for symbol in ciphertext:
-        plaintext[col] += symbol
-        row += 1
-        if (row == num_rows) or (row == num_rows - 1 and col >= num_cols - num_shaded_boxes):
-            col += 1
-            row = 0
-    return "".join(plaintext)
+    # Pad with 'X' if necessary
+    padding_len = (row_count * col_count) - len(text)
+    text += 'X' * padding_len
+    
+    matrix = [list(text[i:i+col_count]) for i in range(0, len(text), col_count)]
+    
+    # Sort key alphabetically to get column read order
+    sorted_key_indices = sorted(range(len(key)), key=lambda k: key[k])
+    
+    ciphertext = ""
+    for idx in sorted_key_indices:
+        for row in matrix:
+            ciphertext += row[idx]
+    return ciphertext
 
-# Combined Custom Cipher
-def custom_encrypt(plaintext, key):
-    stage1 = vigenere_cipher(plaintext, key, encrypt=True)
-    return transposition_encrypt(stage1, key)
+def columnar_decrypt(cipher, key):
+    key = key.upper()
+    col_count = len(key)
+    row_count = math.ceil(len(cipher) / col_count)
+    
+    sorted_key_indices = sorted(range(len(key)), key=lambda k: key[k])
+    
+    # Recreate empty matrix grid
+    matrix = [['' for _ in range(col_count)] for _ in range(row_count)]
+    
+    current_idx = 0
+    # Fill columns back in sorted order
+    for col_idx in sorted_key_indices:
+        for r in range(row_count):
+            if current_idx < len(cipher):
+                matrix[r][col_idx] = cipher[current_idx]
+                current_idx += 1
+                
+    # Read row by row to recover intermediate text
+    plaintext = ""
+    for row in matrix:
+        plaintext += "".join(row)
+    return plaintext
 
-def custom_decrypt(ciphertext, key):
-    stage1 = transposition_decrypt(ciphertext, key)
-    return vigenere_cipher(stage1, key, encrypt=False)
+def custom_encrypt(plain, key):
+    # Stage 1: Vigenere Substitution
+    stage1 = vigenere_encrypt(plain, key)
+    # Stage 2: Columnar Transposition
+    stage2 = columnar_encrypt(stage1, key)
+    return stage2
+
+def custom_decrypt(cipher, key):
+    # Stage 2 Reverse: Columnar Transposition Decryption
+    stage1 = columnar_decrypt(cipher, key)
+    # Stage 1 Reverse: Vigenere Decryption
+    plain = vigenere_decrypt(stage1, key)
+    return plain
